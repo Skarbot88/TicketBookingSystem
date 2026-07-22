@@ -1,14 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using TicketBookingSystemApi.Data;
 using TicketBookingSystemApi.Models;
 
-namespace TicketingApi.Data;
+namespace TicketBookingSystemApi.Data;
 
 public static class DbSeeder
 {
-    // Runtime seeding rather than EF's HasData: HasData is baked into a migration
-    // snapshot, which doesn't work well here since StartsAt is computed relative to
-    // "now" every time (DateTime.UtcNow.AddDays(7)).
     public static async Task SeedAsync(TicketBookingDataContext db)
     {
         if (await db.Events.AnyAsync())
