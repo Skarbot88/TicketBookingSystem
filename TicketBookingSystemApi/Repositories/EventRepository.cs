@@ -14,5 +14,10 @@ namespace TicketBookingSystemApi.Repositories
 				.Include(e => e.Tickets)
 				.FirstOrDefaultAsync(e => e.Id == eventId);
 		}
+
+		public async Task<bool> ExistsAsync(int eventId)
+		{
+			return await db.Events.AnyAsync(e => e.Id == eventId);
+		}
 	}
 }

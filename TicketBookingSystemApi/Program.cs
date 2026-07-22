@@ -1,18 +1,26 @@
 using Microsoft.EntityFrameworkCore;
 using TicketBookingSystemApi.Data;
-using TicketBookingSystemApi.Endpoints;
 using TicketBookingSystemApi.Interfaces;
 using TicketBookingSystemApi.Repositories;
 using TicketBookingSystemApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
 
+//swagger gen 
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+});
+
+builder.Services.AddControllers();
 builder.Services.AddScoped<IEventRepository,EventRepository>();
 builder.Services.AddScoped<IEventService,EventService>();
+builder.Services.AddScoped<ITicketRepository, TicketRepository>();
+builder.Services.AddScoped<ITicketReservationService, TicketReservationService>();
 
 builder.Services.AddDbContext<TicketBookingDataContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Tickets") ?? "Data Source=tickets.db")
@@ -20,12 +28,13 @@ builder.Services.AddDbContext<TicketBookingDataContext>(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline. 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
-app.MapEventEndpoints();
+app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
 {
