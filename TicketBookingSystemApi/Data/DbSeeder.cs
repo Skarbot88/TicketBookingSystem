@@ -14,7 +14,6 @@ public static class DbSeeder
 
         var @event = new Event
         {
-            Id = 1,
             Name = "Live Coding Lounge – Friday Night",
             StartsAt = DateTime.UtcNow.AddDays(7),
             TotalSeats = 50,
