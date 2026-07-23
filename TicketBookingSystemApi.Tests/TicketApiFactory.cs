@@ -10,10 +10,19 @@ namespace TicketBookingSystemApi.Tests
 {
     public class TicketApiFactory : WebApplicationFactory<Program>
     {
-        //persist connection through the lifetime of this class
-        private readonly SqliteConnection _connection = new("DataSource=:memory:;Cache=Shared");
+        private readonly string _connectionString =
+            $"Data Source=TicketBookingTests_{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Default Timeout=5";
 
-        public TicketApiFactory() => _connection.Open();
+        // Keep-alive only: SQLite drops a shared in-memory database once its last
+        // connection closes. Never handed to the DbContext - requests get their own
+        // connections so concurrent requests behave like independent real clients.
+        private readonly SqliteConnection _keepAliveConnection;
+
+        public TicketApiFactory()
+        {
+            _keepAliveConnection = new SqliteConnection(_connectionString);
+            _keepAliveConnection.Open();
+        }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -26,7 +35,7 @@ namespace TicketBookingSystemApi.Tests
                     services.Remove(descriptor);
                 }
 
-                services.AddDbContext<TicketBookingDataContext>(options => options.UseSqlite(_connection));
+                services.AddDbContext<TicketBookingDataContext>(options => options.UseSqlite(_connectionString));
             });
         }
 
@@ -74,7 +83,7 @@ namespace TicketBookingSystemApi.Tests
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            _connection.Dispose();
+            _keepAliveConnection.Dispose();
         }
     }
 }
