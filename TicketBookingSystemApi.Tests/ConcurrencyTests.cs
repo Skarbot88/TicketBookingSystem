@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using TicketBookingSystemApi.Models;
 
 namespace TicketBookingSystemApi.Tests
 {
@@ -28,6 +29,27 @@ namespace TicketBookingSystemApi.Tests
 
             Assert.Equal(1, createdCount);
             Assert.Equal(1, conflictCount);
+        }
+
+        [Fact]
+        public async Task Purchase_TwoConcurrentPurchaseAttemptsSameTicket_ExactlyOneSucceeds()
+        {
+            var @event = await factory.SeedEventReturningEntityAsync(new Ticket
+            {
+                Status = TicketStatus.Reserved,
+                HolderName = "Alice",
+                ReservedAt = DateTime.UtcNow.AddMinutes(-2)
+            });
+            var ticketId = @event.Tickets[0].Id;
+            var client = factory.CreateClient();
+
+            var requestA = client.PostAsJsonAsync($"/api/tickets/{ticketId}/purchase", new { holderName = "Alice" });
+            var requestB = client.PostAsJsonAsync($"/api/tickets/{ticketId}/purchase", new { holderName = "Alice" });
+
+            var responses = await Task.WhenAll(requestA, requestB);
+
+            Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+            Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
         }
     }
 }

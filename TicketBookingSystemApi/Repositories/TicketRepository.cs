@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TicketBookingSystemApi.Data;
 using TicketBookingSystemApi.Interfaces;
 using TicketBookingSystemApi.Models;
+using TicketBookingSystemApi.Models.enums;
 
 namespace TicketBookingSystemApi.Repositories
 {
@@ -54,6 +55,44 @@ namespace TicketBookingSystemApi.Repositories
 
             return null;
  
+        }
+
+        public async Task<TicketPurchaseOutcome> PurchaseAsync(int ticketId, string holderName, DateTime cutoff)
+        {
+            var affected = await db.Tickets
+                .Where(t => t.Id == ticketId
+                    && t.Status == TicketStatus.Reserved
+                    && t.HolderName == holderName
+                    && t.ReservedAt >= cutoff)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, TicketStatus.Sold));
+
+            if (affected == 1)
+            {
+                var sold = await db.Tickets.AsNoTracking().FirstAsync(t => t.Id == ticketId);
+                return TicketPurchaseOutcome.Ok(sold);
+            }
+
+            // affected == 0: the atomic decision is already final. Everything below is
+            // purely to figure out *why*, for a helpful error message - it doesn't
+            // affect correctness.
+            var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == ticketId);
+
+            if (ticket is null)
+            {
+                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.TicketNotFound);
+            }
+
+            if (ticket.Status == TicketStatus.Reserved && ticket.ReservedAt < cutoff)
+            {
+                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.Expired);
+            }
+
+            if (ticket.Status != TicketStatus.Reserved)
+            {
+                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.NotReserved);
+            }
+
+            return TicketPurchaseOutcome.Fail(PurchaseFailureReason.WrongHolder);
         }
     }
 }

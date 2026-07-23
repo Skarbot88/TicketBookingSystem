@@ -49,6 +49,25 @@ namespace TicketBookingSystemApi.Tests
             return @event.Id;
         }
 
+        public async Task<Event> SeedEventReturningEntityAsync(params Ticket[] tickets)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<TicketBookingDataContext>();
+
+            var @event = new Event
+            {
+                Name = "Test Event",
+                StartsAt = DateTime.UtcNow.AddDays(1),
+                TotalSeats = tickets.Length,
+                Tickets = tickets.ToList()
+            };
+
+            db.Events.Add(@event);
+            await db.SaveChangesAsync();
+
+            return @event;
+        }
+
         public Task<int> SeedEventWithSingleAvailableTicketAsync() =>
             SeedEventAsync(new Ticket { Status = TicketStatus.Available });
 

@@ -21,6 +21,7 @@ builder.Services.AddScoped<IEventRepository,EventRepository>();
 builder.Services.AddScoped<IEventService,EventService>();
 builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 builder.Services.AddScoped<ITicketReservationService, TicketReservationService>();
+builder.Services.AddScoped<ITicketPurchaseService, TicketPurchaseService>();
 
 builder.Services.AddDbContext<TicketBookingDataContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Tickets") ?? "Data Source=tickets.db")
