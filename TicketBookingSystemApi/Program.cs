@@ -35,7 +35,8 @@ builder.Services.AddScoped<ITicketReservationService, TicketReservationService>(
 builder.Services.AddScoped<ITicketPurchaseService, TicketPurchaseService>();
 
 builder.Services.AddDbContext<TicketBookingDataContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Tickets") ?? "Data Source=tickets.db")
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Tickets")
+        ?? "Server=localhost,1433;Database=TicketBooking;User Id=sa;Password=Dev_Only_Pa55word!;TrustServerCertificate=True;")
 );
 
 var app = builder.Build();

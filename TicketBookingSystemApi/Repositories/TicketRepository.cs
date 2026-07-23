@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using TicketBookingSystemApi.Data;
 using TicketBookingSystemApi.Interfaces;
 using TicketBookingSystemApi.Models;
@@ -7,84 +6,58 @@ using TicketBookingSystemApi.Models.enums;
 
 namespace TicketBookingSystemApi.Repositories
 {
-    public class TicketRepository(TicketBookingDataContext db, IConfiguration configuration, ILogger<TicketRepository> logger) : ITicketRepository
+    public class TicketRepository(TicketBookingDataContext db) : ITicketRepository
     {
-        private readonly int maxAttempts = int.TryParse(configuration["TicketReservation:MaxAtttempts"], out var tries) ? tries : 5; 
         public async Task<Ticket?> ReserveNextAvailableAsync(int eventId, string holderName, DateTime now, DateTime cutoff)
         {
-            var triedIds = new HashSet<int>();
+            await using var transaction = await db.Database.BeginTransactionAsync();
 
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            var candidate = await db.Tickets
+                .FromSqlInterpolated($@"
+                    SELECT TOP (1) Id, EventId, HolderName, Status, ReservedAt
+                    FROM Tickets WITH (UPDLOCK, ROWLOCK, READPAST)
+                    WHERE EventId = {eventId}
+                      AND (Status = {(int)TicketStatus.Available}
+                           OR (Status = {(int)TicketStatus.Reserved} AND ReservedAt < {cutoff}))
+                    ORDER BY Id")
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+
+            if (candidate is null)
             {
-                
-                var candidateId = await db.Tickets
-                    .Where(t => t.EventId == eventId
-                        && !triedIds.Contains(t.Id)
-                        && (t.Status == TicketStatus.Available
-                            || (t.Status == TicketStatus.Reserved && t.ReservedAt < cutoff)))
-                    .OrderBy(t => t.Id)
-                    .Select(t => (int?)t.Id)
-                    .FirstOrDefaultAsync();
-
-                if (candidateId is null)
-                {
-                    return null;
-                }
-
-                
-                var affected = await db.Tickets
-                    .Where(t => t.Id == candidateId
-                        && (t.Status == TicketStatus.Available
-                            || (t.Status == TicketStatus.Reserved && t.ReservedAt < cutoff)))
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(t => t.Status, TicketStatus.Reserved)
-                        .SetProperty(t => t.HolderName, holderName)
-                        .SetProperty(t => t.ReservedAt, now));
-
-                if (affected == 1)
-                {
-                    return await db.Tickets.AsNoTracking().FirstAsync(t => t.Id == candidateId);
-                }
-
-                logger.LogInformation(
-                    "Reserve attempt {Attempt} lost the race for ticket {TicketId} on event {EventId}, retrying",
-                    attempt, candidateId, eventId);
-
-                triedIds.Add(candidateId.Value);
+                return null;
             }
 
-            return null;
- 
+            await db.Tickets
+                .Where(t => t.Id == candidate.Id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.Status, TicketStatus.Reserved)
+                    .SetProperty(t => t.HolderName, holderName)
+                    .SetProperty(t => t.ReservedAt, now));
+
+            await transaction.CommitAsync();
+
+            candidate.Status = TicketStatus.Reserved;
+            candidate.HolderName = holderName;
+            candidate.ReservedAt = now;
+            return candidate;
         }
 
         public async Task<TicketPurchaseOutcome> PurchaseAsync(int ticketId, string holderName, DateTime cutoff)
         {
-            var affected = await db.Tickets
-                .Where(t => t.Id == ticketId
-                    && t.Status == TicketStatus.Reserved
-                    && t.HolderName == holderName
-                    && t.ReservedAt >= cutoff)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, TicketStatus.Sold));
+            await using var transaction = await db.Database.BeginTransactionAsync();
 
-            if (affected == 1)
-            {
-                var sold = await db.Tickets.AsNoTracking().FirstAsync(t => t.Id == ticketId);
-                return TicketPurchaseOutcome.Ok(sold);
-            }
-
-            // affected == 0: the atomic decision is already final. Everything below is
-            // purely to figure out *why*, for a helpful error message - it doesn't
-            // affect correctness.
-            var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == ticketId);
+            var ticket = await db.Tickets
+                .FromSqlInterpolated($@"
+                    SELECT Id, EventId, HolderName, Status, ReservedAt
+                    FROM Tickets WITH (UPDLOCK, ROWLOCK)
+                    WHERE Id = {ticketId}")
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
 
             if (ticket is null)
             {
                 return TicketPurchaseOutcome.Fail(PurchaseFailureReason.TicketNotFound);
-            }
-
-            if (ticket.Status == TicketStatus.Reserved && ticket.ReservedAt < cutoff)
-            {
-                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.Expired);
             }
 
             if (ticket.Status != TicketStatus.Reserved)
@@ -92,7 +65,24 @@ namespace TicketBookingSystemApi.Repositories
                 return TicketPurchaseOutcome.Fail(PurchaseFailureReason.NotReserved);
             }
 
-            return TicketPurchaseOutcome.Fail(PurchaseFailureReason.WrongHolder);
+            if (ticket.ReservedAt < cutoff)
+            {
+                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.Expired);
+            }
+
+            if (ticket.HolderName != holderName)
+            {
+                return TicketPurchaseOutcome.Fail(PurchaseFailureReason.WrongHolder);
+            }
+
+            await db.Tickets
+                .Where(t => t.Id == ticketId)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, TicketStatus.Sold));
+
+            await transaction.CommitAsync();
+
+            ticket.Status = TicketStatus.Sold;
+            return TicketPurchaseOutcome.Ok(ticket);
         }
     }
 }

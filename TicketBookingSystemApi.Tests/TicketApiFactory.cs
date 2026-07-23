@@ -1,28 +1,30 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Testcontainers.MsSql;
 using TicketBookingSystemApi.Data;
 using TicketBookingSystemApi.Models;
 
 namespace TicketBookingSystemApi.Tests
 {
-    public class TicketApiFactory : WebApplicationFactory<Program>
+    public class TicketApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
-        private readonly string _connectionString =
-            $"Data Source=TicketBookingTests_{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Default Timeout=5";
+        private string _connectionString = string.Empty;
 
-        // Keep-alive only: SQLite drops a shared in-memory database once its last
-        // connection closes. Never handed to the DbContext - requests get their own
-        // connections so concurrent requests behave like independent real clients.
-        private readonly SqliteConnection _keepAliveConnection;
-
-        public TicketApiFactory()
+        async Task IAsyncLifetime.InitializeAsync()
         {
-            _keepAliveConnection = new SqliteConnection(_connectionString);
-            _keepAliveConnection.Open();
+            var container = await SharedSqlServerContainer.GetAsync();
+
+            var connectionStringBuilder = new SqlConnectionStringBuilder(container.GetConnectionString())
+            {
+                InitialCatalog = $"TicketBookingTests_{Guid.NewGuid():N}"
+            };
+            _connectionString = connectionStringBuilder.ConnectionString;
         }
+
+        async Task IAsyncLifetime.DisposeAsync() => await base.DisposeAsync();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -35,7 +37,7 @@ namespace TicketBookingSystemApi.Tests
                     services.Remove(descriptor);
                 }
 
-                services.AddDbContext<TicketBookingDataContext>(options => options.UseSqlite(_connectionString));
+                services.AddDbContext<TicketBookingDataContext>(options => options.UseSqlServer(_connectionString));
             });
         }
 
@@ -79,11 +81,19 @@ namespace TicketBookingSystemApi.Tests
 
         public Task<int> SeedEventWithSingleAvailableTicketAsync() =>
             SeedEventAsync(new Ticket { Status = TicketStatus.Available });
+    }
 
-        protected override void Dispose(bool disposing)
+    // start it for the test suit then keep it running for all tests, to avoid the overhead of starting/stopping a container for each test
+    internal static class SharedSqlServerContainer
+    {
+        private static readonly Lazy<Task<MsSqlContainer>> LazyContainer = new(async () =>
         {
-            base.Dispose(disposing);
-            _keepAliveConnection.Dispose();
-        }
+            // Same image as docker-compose.yml, kept in sync deliberately.
+            var container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+            await container.StartAsync();
+            return container;
+        });
+
+        public static Task<MsSqlContainer> GetAsync() => LazyContainer.Value;
     }
 }
