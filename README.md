@@ -41,13 +41,17 @@ Reservations expire after 10 minutes and become available again. Full request/re
 Requirements: Docker Desktop (or a compatible Docker engine).
 
 ```bash
-cp .env.example .env
 docker-compose up -d
 ```
 
 This starts a SQL Server 2022 container on `localhost:1433`, matching the connection
 string already configured in `appsettings.Development.json`. `docker-compose ps` will
 report it `healthy` once it's ready to accept connections.
+
+`docker-compose.yml` falls back to the same dev-only password used in
+`appsettings.Development.json` if `MSSQL_SA_PASSWORD` isn't set, so this works with no
+extra setup. To use a different password, copy `.env.example` to `.env` and edit it
+(and update `appsettings.Development.json` to match).
 
 ## Running the backend
 

@@ -4,7 +4,7 @@ services:
     container_name: ticketbooking-sql-server
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Dev_Only_Pa55word!}
       MSSQL_PID: "Developer"
     ports:
       - "1433:1433"
