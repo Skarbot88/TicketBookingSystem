@@ -57,6 +57,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-
-// .NET 9 workaround for accessibility of api
-public partial class Program { }

@@ -5,8 +5,8 @@ A small ticket booking system built for a Zempler Bank technical exercise. Users
 ## Tech stack
 
 **Backend** — `TicketBookingSystemApi/`
-- .NET 9 / ASP.NET Core Web API 
-- Entity Framework Core 9 with SQLite (`tickets.db`)
+- .NET 10 / ASP.NET Core Web API 
+- Entity Framework Core 10 with SQLite (`tickets.db`)
 - Swagger / Swashbuckle for API docs
 - Layered as Controller → Service → Repository, with interfaces for each
 
@@ -36,7 +36,7 @@ Reservations expire after 10 minutes and become available again. Full request/re
 
 ## Running the backend
 
-Requirements: [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ```bash
 cd TicketBookingSystemApi
