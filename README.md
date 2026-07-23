@@ -24,8 +24,8 @@ A small ticket booking system built for a Zempler Bank technical exercise. Users
 Design decisions are documented as short ADRs in the repo root:
 - [0001-ResponseChoices.md](0001-ResponseChoices.md) — why event responses return ticket counts rather than the full ticket list
 - [0002-MinimalApi-to-ControllerPattern-Justification.md](0002-MinimalApi-to-ControllerPattern-Justification.md) — why controllers were chosen over Minimal APIs
-- [0003-Decision-to-go-with-optimistic-approach.md](0003-Decision-to-go-with-optimistic-approach.md) — the original SQLite-based optimistic approach
-
+- [0003-Decision-to-go-with-optimistic-approach.md](0003-Decision-to-go-with-optimistic-approach.md) — how concurrent reservations for the last ticket are resolved using the SQLite db. 
+- Need to add the ADR for this Postgres approach. 
 ## API overview
 
 | Method | Route | Description |
